@@ -182,21 +182,25 @@ bool WorldSystem::step(float elapsed_ms_since_last_update) {
 	}
 
 	// Spawn new Vortex
-	next_vortex_spawn -= elapsed_ms_since_last_update * current_speed;
-	if (registry.pits.components.size() <= MAX_VORTICES && next_vortex_spawn < 0.f) {
-		next_vortex_spawn = (VORTEX_DELAY / 2) + uniform_dist(rng) * (VORTEX_DELAY / 2);
-		Entity entity = createVortex(renderer, { screen_width + 50.f, 50.f + uniform_dist(rng) * (screen_height - 100.f) });
+	if (registry.mode.has(player_salmon) && registry.mode.get(player_salmon).basicMode == false) {
+		next_vortex_spawn -= elapsed_ms_since_last_update * current_speed;
+		if (registry.pits.components.size() <= MAX_VORTICES && next_vortex_spawn < 0.f) {
+			next_vortex_spawn = (VORTEX_DELAY / 2) + uniform_dist(rng) * (VORTEX_DELAY / 2);
+			Entity entity = createVortex(renderer, { screen_width + 50.f, 50.f + uniform_dist(rng) * (screen_height - 100.f) });
+		}
+
+		// rotate Vortex
+		for (auto& vortexEntity : registry.pits.entities) {
+			auto& motion = registry.motions.get(vortexEntity);
+			// motion.angle = motion.angle + ((90/ 360 ) * 2 * M_PI);
+			motion.angle += 0.5;
+			if (motion.angle >= (2 * M_PI)) {
+				motion.angle = 0;
+			}
+		}
+
 	}
 
-	// rotate Vortex
-	for (auto& vortexEntity : registry.pits.entities) {
-		auto& motion = registry.motions.get(vortexEntity);
-		// motion.angle = motion.angle + ((90/ 360 ) * 2 * M_PI);
-		motion.angle += 0.5;
-		if (motion.angle >= (2 * M_PI)) {
-			motion.angle = 0;
-		}
-	}
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	// TODO A3: HANDLE PEBBLE SPAWN HERE
@@ -472,12 +476,46 @@ void WorldSystem::on_key(int key, int, int action, int mod) {
 		}
 		// Control salmon's vertical motiom with up/down keys
 		if (action == GLFW_REPEAT && key == GLFW_KEY_DOWN) {
-			salmon_motion.velocity.y = 10;
-			salmon_motion.position.y += salmon_motion.velocity.y;
+			// salmon_motion.velocity.y = 10;
+			// salmon_motion.position.y += salmon_motion.velocity.y;
+			salmon_motion.velocity.y = 10 * sin(salmon_motion.angle);
+			salmon_motion.velocity.x = 10 * cos(salmon_motion.angle);
+			// salmon_motion.position.y += salmon_motion.velocity.y;
+			salmon_motion.position = vec2(salmon_motion.position.x + salmon_motion.velocity.x, salmon_motion.position.y + salmon_motion.velocity.y);
 		}
 		if (action == GLFW_REPEAT && key == GLFW_KEY_UP) {
-			salmon_motion.velocity.y = 10;
-			salmon_motion.position.y -= salmon_motion.velocity.y;
+			salmon_motion.velocity.y = 10 * sin(salmon_motion.angle);
+			salmon_motion.velocity.x = 10 * cos(salmon_motion.angle);
+			// salmon_motion.position.y += salmon_motion.velocity.y;
+			salmon_motion.position = vec2(salmon_motion.position.x + salmon_motion.velocity.x, salmon_motion.position.y + salmon_motion.velocity.y);
+		}
+
+		if (!registry.deathTimers.has(player_salmon)) {
+			if (action == GLFW_PRESS && key == GLFW_KEY_LEFT) {
+				salmon_motion.velocity.x = 10;
+				salmon_motion.position.x -= salmon_motion.velocity.x;
+			}
+			if (action == GLFW_PRESS && key == GLFW_KEY_RIGHT) {
+				salmon_motion.velocity.x = 10;
+				salmon_motion.position.x += salmon_motion.velocity.x;
+			}
+			// Control salmon's vertical motiom with up/down keys
+			if (action == GLFW_PRESS && key == GLFW_KEY_DOWN) {
+				// salmon_motion.velocity.y = 10;
+				// salmon_motion.position.y += salmon_motion.velocity.y;
+				salmon_motion.velocity.y = 10 * sin(salmon_motion.angle);
+				salmon_motion.velocity.x = 10 * cos(salmon_motion.angle);
+				// salmon_motion.position.y += salmon_motion.velocity.y;
+				salmon_motion.position = vec2(salmon_motion.position.x + salmon_motion.velocity.x, salmon_motion.position.y + salmon_motion.velocity.y);
+			}
+			if (action == GLFW_PRESS && key == GLFW_KEY_UP) {
+				// salmon_motion.velocity.y = 10;
+				// salmon_motion.position.y -= salmon_motion.velocity.y;
+				salmon_motion.velocity.y = 10 * sin(salmon_motion.angle);
+				salmon_motion.velocity.x = 10 * cos(salmon_motion.angle);
+				// salmon_motion.position.y += salmon_motion.velocity.y;
+				salmon_motion.position = vec2(salmon_motion.position.x + salmon_motion.velocity.x, salmon_motion.position.y + salmon_motion.velocity.y);
+			}
 		}
 
 		if (action == GLFW_PRESS && key == GLFW_KEY_A) {
