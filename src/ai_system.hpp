@@ -13,4 +13,12 @@ class AISystem
 {
 public:
 	void step(float elapsed_ms);
+
+	void maybeDrawDeltaBox(Motion* m_salmonMotion, float* m_distance);
+
+	const float FISH_DELTA_DISTANCE = 200;	
+
+	int frameCounter = 0;
+
+	int internalFrameCounter = -1;
 };

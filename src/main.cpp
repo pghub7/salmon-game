@@ -4,6 +4,7 @@
 
 // stlib
 #include <chrono>
+#include <thread>
 #include <iostream>
 
 // internal
@@ -30,6 +31,7 @@ int main()
 	RenderSystem renderer;
 	PhysicsSystem physics;
 	AISystem ai;
+	ai.frameCounter = 5;
 
 	// Initializing window
 	GLFWwindow* window = world.create_window(window_width_px, window_height_px);
@@ -57,8 +59,15 @@ int main()
 		float elapsed_ms =
 			(float)(std::chrono::duration_cast<std::chrono::microseconds>(now - t)).count() / 1000;
 		t = now;
-
+		
 		world.step(elapsed_ms);
+		if (ai.internalFrameCounter == 100) {
+			ai.internalFrameCounter = 0;
+		}
+		else {
+			ai.internalFrameCounter++;
+
+		}
 		ai.step(elapsed_ms);
 		physics.step(elapsed_ms, window_width_px, window_height_px);
 		world.handle_collisions();
@@ -66,6 +75,14 @@ int main()
 		renderer.draw();
 
 		// TODO A2: you can implement the debug freeze here but other places are possible too.
+		if (debugging.in_freeze_mode && debugging.in_debug_mode) {
+			printf("inside freeze\n");
+			// std::chrono::milliseconds timespan(500);
+			// std::this_thread::sleep_for(timespan);
+			// Sleep(50);
+			debugging.in_freeze_mode = false;
+		}
+		
 	}
 
 	return EXIT_SUCCESS;

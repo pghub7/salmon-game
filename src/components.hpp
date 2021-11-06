@@ -7,6 +7,8 @@
 // Player component
 struct Player
 {
+	bool collidesWithTopWall = false;
+	bool collidesWithBottomWall = false;
 
 };
 
@@ -19,7 +21,7 @@ struct HardShell
 // Fish and Salmon have a soft shell
 struct SoftShell
 {
-
+	bool inDeltaRange = false;
 };
 
 // E.g A vortex is like a pit.

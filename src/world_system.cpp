@@ -12,8 +12,8 @@
 // Game configuration
 const size_t MAX_TURTLES = 15;
 const size_t MAX_FISH = 5;
-const size_t TURTLE_DELAY_MS = 2000 * 3;
-const size_t FISH_DELAY_MS = 5000 * 3;
+const size_t TURTLE_DELAY_MS = 5000 * 3;
+const size_t FISH_DELAY_MS = 1000 * 3;
 const size_t MAX_VORTICES = 2;
 const size_t VORTEX_DELAY = 5000 * 5;
 
@@ -178,7 +178,10 @@ bool WorldSystem::step(float elapsed_ms_since_last_update) {
 		// !!!  TODO A1: Create new fish with createFish({0,0}), as for the Turtles above
 		Entity entity = createFish(renderer, { screen_width + 50.f, 50.f + uniform_dist(rng) * (screen_height - 100.f) });
 		Motion& motion = registry.motions.get(entity);
-		motion.velocity = vec2(-200.f, 0);
+		std::random_device rd; // obtain a random number from hardware
+		std::mt19937 gen(rd()); // seed the generator
+		std::uniform_int_distribution<> distr(-200, 200); // define the range
+		motion.velocity = vec2(-200.f, distr(gen));
 	}
 
 	// Spawn new Vortex
@@ -286,7 +289,7 @@ bool WorldSystem::step(float elapsed_ms_since_last_update) {
 				deathParticles.fadedParticles++;
 			}
 		}
-		if (deathParticles.fadedParticles >= 499) {
+		if (deathParticles.fadedParticles >= 99) {
 			registry.deathParticles.remove(entity);
 		}
 	}
@@ -301,7 +304,7 @@ void WorldSystem::restart_game() {
 	printf("Restarting\n");
 
 	// Reset the game speed
-	current_speed = 1.f;
+	current_speed = 0.4f;
 
 	// Remove all entities that we created
 	// All that have a motion, we could also iterate over all fish, turtles, ... but that would be more cumbersome
@@ -333,6 +336,12 @@ void WorldSystem::restart_game() {
 
 // Compute collisions between entities
 void WorldSystem::handle_collisions() {
+
+	//// handle salmon collisions with wall
+	//if (registry.players.has(player_salmon) && registry.players.get(player_salmon).collidesWithWall == true) {
+	//	registry.motions.get(player_salmon).velocity.y = 15.;
+	//}
+
 	// Loop over all collisions detected by the physics system
 	auto& collisionsRegistry = registry.collisions; // TODO: @Tim, is the reference here needed?
 	for (uint i = 0; i < collisionsRegistry.components.size(); i++) {
@@ -371,7 +380,7 @@ void WorldSystem::handle_collisions() {
 					
 					if (!registry.deathParticles.has(entity)) {
 						DeathParticle particleEffects;
-						for (int p = 0; p < 500; p++) {
+						for (int p = 0; p < 100; p++) {
 							auto& motion = registry.motions.get(entity);
 							DeathParticle particle;
 							// particle.motion.position.x = motion.position.x + 10;

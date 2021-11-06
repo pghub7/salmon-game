@@ -47,7 +47,9 @@ vec4 color_shift(vec4 in_color)
 
 vec4 fade_color(vec4 in_color) 
 {
-	return in_color;
+	vec3 c = in_color.xyz;
+
+	return vec4(c, 0.1);
 }
 
 void main()
