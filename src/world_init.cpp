@@ -68,11 +68,14 @@ Entity createTurtle(RenderSystem* renderer, vec2 position)
 	// Initialize the motion
 	auto& motion = registry.motions.emplace(entity);
 	motion.angle = 0.f;
-	motion.velocity = { -100.f, 0.f };
+	motion.velocity = { -50.f, 0.f };
 	motion.position = position;
 
 	// Setting initial values, scale is negative to make it face the opposite way
 	motion.scale = vec2({ -TURTLE_BB_WIDTH, TURTLE_BB_HEIGHT });
+
+	auto& physics = registry.physics.emplace(entity);
+	physics.mass = 100.;
 
 	// Create and (empty) Turtle component to be able to refer to all turtles
 	registry.hardShells.emplace(entity);
@@ -147,8 +150,10 @@ Entity createPebble(vec2 pos, vec2 size)
 	motion.velocity = { 0.f, 0.f };
 	motion.scale = size;
 
-	// Create and (empty) Salmon component to be able to refer to all turtles
-	registry.players.emplace(entity);
+	auto& physics = registry.physics.emplace(entity);
+	physics.mass = 1.;
+	physics.affectedByGravity = true;
+
 	registry.renderRequests.insert(
 		entity,
 		{ TEXTURE_ASSET_ID::TEXTURE_COUNT, // TEXTURE_COUNT indicates that no txture is needed

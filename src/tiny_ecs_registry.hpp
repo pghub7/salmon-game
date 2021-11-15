@@ -12,6 +12,7 @@ class ECSRegistry
 public:
 	// Manually created list of all components this game has
 	// TODO: A1 add a LightUp component
+	ComponentContainer<Physics> physics;
 	ComponentContainer<DeathParticle> deathParticles;
 	ComponentContainer<Mode> mode;
 	ComponentContainer<Pit> pits;
@@ -33,6 +34,7 @@ public:
 	ECSRegistry()
 	{
 		// TODO: A1 add a LightUp component
+		registry_list.push_back(&physics);
 		registry_list.push_back(&deathParticles);
 		registry_list.push_back(&mode);
 		registry_list.push_back(&pits);

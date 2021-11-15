@@ -18,6 +18,14 @@ struct HardShell
 
 };
 
+struct Physics
+{
+	float mass = 0.f;
+	// 2 pixels per millisecond^2
+	float gravityAccel = 0.2;
+	bool affectedByGravity = false;
+};
+
 // Fish and Salmon have a soft shell
 struct SoftShell
 {
@@ -113,9 +121,12 @@ struct DeathParticle
 	float     Life;
 	std::vector<DeathParticle> deathParticles;
 	int fadedParticles = 0;
+	float positions[1000 * 4];
+	bool faded;
+	float angle;
 
 	DeathParticle()
-		: Color(1.0f), Life(1500.f) {
+		: Color(1.0f), Life(1500.f), faded(false), angle(0.) {
 		motion.velocity.x = (float)((rand() % 50 - 10) * 5);
 		motion.velocity.y = (float)((rand() % 50 - 10) * 5);
 	}

@@ -2,6 +2,30 @@
 #include "physics_system.hpp"
 #include "world_init.hpp"
 
+namespace {
+	vec2 computeCollisionVelocity(Entity entity, Entity entity_other) {
+		auto& motion_entity = registry.motions.get(entity);
+		auto& motion_entity_other = registry.motions.get(entity_other);
+		auto& physics_entity = registry.physics.get(entity);
+		auto& physics_entity_other = registry.physics.get(entity_other);
+
+		float distSquared = (float)pow(motion_entity.position.x - motion_entity_other.position.x, 2) + (float)pow(motion_entity.position.y - motion_entity_other.position.y, 2);
+
+		vec2 num = (motion_entity.velocity - motion_entity_other.velocity) * (motion_entity.position - motion_entity_other.position);
+		num = num / distSquared;
+		num = num * (motion_entity.position - motion_entity_other.position);
+		float coeff = (2.f * physics_entity_other.mass) / (physics_entity.mass + physics_entity_other.mass);
+
+		vec2 new_velocity = motion_entity.velocity - (coeff * num);
+
+		if (physics_entity.affectedByGravity) {
+			// new_velocity *= -1.f;
+		}
+
+		return new_velocity;
+	}
+}
+
 // Returns the local bounding coordinates scaled by the current size of the entity
 vec2 get_bounding_box(const Motion& motion)
 {
@@ -14,17 +38,58 @@ vec2 get_bounding_box(const Motion& motion)
 // surely implement a more accurate detection
 bool collides(const Motion& motion1, const Motion& motion2)
 {
-	vec2 dp = motion1.position - motion2.position;
-	float dist_squared = dot(dp,dp);
-	const vec2 other_bonding_box = get_bounding_box(motion1) / 2.f;
-	const float other_r_squared = dot(other_bonding_box, other_bonding_box);
-	const vec2 my_bonding_box = get_bounding_box(motion2) / 2.f;
-	const float my_r_squared = dot(my_bonding_box, my_bonding_box);
-	const float r_squared = max(other_r_squared, my_r_squared);
-	if (dist_squared < r_squared)
+	//vec2 dp = motion1.position - motion2.position;
+	//float dist_squared = dot(dp,dp);
+	//const vec2 other_bonding_box = get_bounding_box(motion1) / 2.f;
+	//const float other_r_squared = dot(other_bonding_box, other_bonding_box);
+	//const vec2 my_bonding_box = get_bounding_box(motion2) / 2.f;
+	//const float my_r_squared = dot(my_bonding_box, my_bonding_box);
+	//const float r_squared = max(other_r_squared, my_r_squared);
+	//if (dist_squared < r_squared)
+	//	return true;
+	//return false;
+	vec2 bounding_box_1 = get_bounding_box(motion1);
+	vec2 bounding_box_2 = get_bounding_box(motion2);
+	float radius1 = sqrt(dot(bounding_box_1 / 2.f, bounding_box_1 / 2.f));
+	float radius2 = sqrt(dot(bounding_box_2 / 2.f, bounding_box_2 / 2.f));
+
+	// calc distance between two circles
+	float distX = motion1.position.x - motion2.position.x;
+	float distY = motion1.position.y - motion2.position.y;
+	float distance = sqrt((distX * distX) + (distY * distY));
+
+	if (distance <= radius1 + radius2) {
 		return true;
+	}
 	return false;
 }
+
+bool checkPreciseCollisionWithSalmon(const Motion& salmonMotion, const Motion& motion2)
+{
+	vec2 bounding_box_non_salmon = get_bounding_box(motion2);
+	float rx = motion2.position.x - bounding_box_non_salmon.x / 2.;
+	float ry = motion2.position.y - bounding_box_non_salmon.y / 2.;
+	float rw = bounding_box_non_salmon.x;
+	float rh = bounding_box_non_salmon.y;
+
+	auto& mesh = registry.meshPtrs.get(registry.players.entities[0]);
+	for (auto& vertex : mesh->vertices) {
+		Transform transform;
+		transform.translate(salmonMotion.position);
+		transform.rotate(salmonMotion.angle);
+		transform.scale(salmonMotion.scale);
+
+		vec3 p = transform.mat * vec3(vertex.position.x, vertex.position.y, 1.0);
+		if (p.x >= rx &&         // right of the left edge AND
+			p.x <= rx + rw &&    // left of the right edge AND
+			p.y >= ry &&         // below the top AND
+			p.y <= ry + rh) {    // above the bottom
+			return true;
+		}
+	}
+	return false;
+}
+
 
 void PhysicsSystem::step(float elapsed_ms, float window_width_px, float window_height_px)
 {
@@ -37,9 +102,6 @@ void PhysicsSystem::step(float elapsed_ms, float window_width_px, float window_h
 		Motion& motion = motion_registry.components[i];
 		Entity entity = motion_registry.entities[i];
 
-		/*if (registry.softShells.has(entity) && registry.softShells.get(entity).inDeltaRange) {
-			printf("velocity of fish Vx: %f  Vy: %f\n", motion.velocity.x, motion.velocity.y);
-		}*/
 		if (registry.players.has(entity) && registry.players.get(entity).collidesWithTopWall == true) {
 			// printf("inside detection statement\n");
 			vec2 bonding_box_i = get_bounding_box(motion);
@@ -52,11 +114,14 @@ void PhysicsSystem::step(float elapsed_ms, float window_width_px, float window_h
 			float radius = sqrt(dot(bonding_box_i / 2.f, bonding_box_i / 2.f));
 			motion.position.y = window_height_px - radius;
 		}
-		/*else if (registry.softShells.has(entity) && registry.softShells.get(entity).canEnd == true) {
-			motion.position.y += ((1.0f * (elapsed_ms / 1000.f)) * motion.velocity.y);
-		}*/
 		else {
 		float step_seconds = 1.0f * (elapsed_ms / 1000.f);
+		if (registry.physics.has(entity)) {
+			auto& physics = registry.physics.get(entity);
+			if (physics.affectedByGravity) {
+				motion.velocity.y += physics.gravityAccel * elapsed_ms;
+			}
+		}
 		motion.position.x = motion.position.x + (step_seconds * motion.velocity.x);
 		motion.position.y = motion.position.y + (step_seconds * motion.velocity.y);
 		}
@@ -97,15 +162,42 @@ void PhysicsSystem::step(float elapsed_ms, float window_width_px, float window_h
 			if (i == j)
 				continue;
 
-			Motion& motion_j = motion_container.components[j];
-			
-			if (collides(motion_i, motion_j))
-			{
+			Motion& motion_j = motion_container.components[j];	
+			if (collides(motion_i, motion_j)) {
 				Entity entity_j = motion_container.entities[j];
-				// Create a collisions event
-				// We are abusing the ECS system a bit in that we potentially insert muliple collisions for the same entity
-				registry.collisions.emplace_with_duplicates(entity_i, entity_j);
-				registry.collisions.emplace_with_duplicates(entity_j, entity_i);
+				
+				// handle collisions involing pebbles
+				if (registry.physics.has(entity_i) && registry.physics.has(entity_j)) {
+					vec2 new_vel_entity_i = computeCollisionVelocity(entity_i, entity_j);					
+					float step_seconds = 1.0f * (elapsed_ms / 1000.f);
+					motion_i.velocity = new_vel_entity_i;
+				}
+				// check for precise collisions for salmon
+				Entity* salmon = nullptr;
+				Entity* other = nullptr;
+				if (registry.players.has(entity_i)) {
+					salmon = &entity_i;
+					other = &entity_j;
+				} else if (registry.players.has(entity_j)) {
+					salmon = &entity_j;
+					other = &entity_i;
+				}
+				
+				if (salmon && registry.physics.has(*other) && registry.physics.get(*other).affectedByGravity == true) {
+					break;
+					// ignore
+				}
+				if (salmon && checkPreciseCollisionWithSalmon(registry.motions.get(*salmon), registry.motions.get(*other))) {
+					registry.collisions.emplace_with_duplicates(entity_i, entity_j);
+					registry.collisions.emplace_with_duplicates(entity_j, entity_i);
+					break;
+				}
+				 // Create a collisions event
+				 // We are abusing the ECS system a bit in that we potentially insert muliple collisions for the same entity
+				if (!salmon) {
+					registry.collisions.emplace_with_duplicates(entity_i, entity_j);
+					registry.collisions.emplace_with_duplicates(entity_j, entity_i);
+				}
 			}
 		}
 	}

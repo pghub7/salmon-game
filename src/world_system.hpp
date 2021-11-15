@@ -57,6 +57,7 @@ private:
 	float next_turtle_spawn;
 	float next_fish_spawn;
 	float next_vortex_spawn;
+	float next_pebble_spawn;
 	Entity player_salmon;
 	bool playerDead;
 

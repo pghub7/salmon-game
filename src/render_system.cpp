@@ -6,84 +6,99 @@
 
 void RenderSystem::drawDeathParticles(Entity entity, const mat3& projection)
 {
-	auto& particles = registry.deathParticles.get(entity).deathParticles;
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE);
-	for (auto& particle : particles) {
-		if (particle.Life > 0.f) {
-			Transform transform;
-			transform.translate(particle.motion.position);
-			transform.rotate(particle.motion.angle);
-			transform.scale(particle.motion.scale);
+	auto& particle = registry.deathParticles.get(entity);
+	if (!particle.faded) {
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
-			const GLuint used_effect_enum = (GLuint)EFFECT_ASSET_ID::PARTICLE;
-			// assert(used_effect_enum != (GLuint)EFFECT_ASSET_ID::EFFECT_COUNT);
-			const GLuint program = (GLuint)effects[used_effect_enum];
+		//Transform transform;
+		//transform.translate(particle.motion.position);
+		//transform.rotate(particle.motion.angle);
+		//transform.scale(particle.motion.scale);
 
-			// Setting shaders
-			glUseProgram(program);
-			gl_has_errors();
+		const GLuint used_effect_enum = (GLuint)EFFECT_ASSET_ID::PARTICLE;
+		const GLuint program = (GLuint)effects[used_effect_enum];
 
-			// assert(render_request.used_geometry != GEOMETRY_BUFFER_ID::GEOMETRY_COUNT);
-			const GLuint vbo = vertex_buffers[(GLuint)GEOMETRY_BUFFER_ID::SPRITE];
-			const GLuint ibo = index_buffers[(GLuint)GEOMETRY_BUFFER_ID::SPRITE];
+		// Setting shaders
+		glUseProgram(program);
+		gl_has_errors();
 
-			// Setting vertex and index buffers
-			glBindBuffer(GL_ARRAY_BUFFER, vbo);
-			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
-			gl_has_errors();
+		const GLuint vbo = vertex_buffers[(GLuint)GEOMETRY_BUFFER_ID::SPRITE];
+		const GLuint ibo = index_buffers[(GLuint)GEOMETRY_BUFFER_ID::SPRITE];
 
-			GLint in_position_loc = glGetAttribLocation(program, "in_position");
-			GLint in_texcoord_loc = glGetAttribLocation(program, "in_texcoord");
-			gl_has_errors();
-			assert(in_texcoord_loc >= 0);
+		// Setting vertex and index buffers
+		glBindBuffer(GL_ARRAY_BUFFER, vbo);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
+		gl_has_errors();
 
-			glEnableVertexAttribArray(in_position_loc);
-			glVertexAttribPointer(in_position_loc, 3, GL_FLOAT, GL_FALSE,
-				sizeof(TexturedVertex), (void*)0);
-			gl_has_errors();
+		GLint in_position_loc = glGetAttribLocation(program, "in_position");
+		GLint in_texcoord_loc = glGetAttribLocation(program, "in_texcoord");
+		// GLint in_part_pos_loc = glGetAttribLocation(program, "in_part_pos");
+		// printf("at line 40\n");
+		gl_has_errors();
+		assert(in_texcoord_loc >= 0);
 
-			glEnableVertexAttribArray(in_texcoord_loc);
-			glVertexAttribPointer(
-				in_texcoord_loc, 2, GL_FLOAT, GL_FALSE, sizeof(TexturedVertex),
-				(void*)sizeof(vec3)); // note the stride to skip the preceeding vertex position
+		glEnableVertexAttribArray(in_position_loc);
+		glVertexAttribPointer(in_position_loc, 3, GL_FLOAT, GL_FALSE,
+			sizeof(TexturedVertex), (void*)0);
+		gl_has_errors();
 
-			// Enabling and binding texture to slot 0
-			glActiveTexture(GL_TEXTURE0);
-			gl_has_errors();
-			GLuint texture_id = texture_gl_handles[(GLuint)TEXTURE_ASSET_ID::DEATH_PARTICLE];
-			glBindTexture(GL_TEXTURE_2D, texture_id);
-			gl_has_errors();
+		glEnableVertexAttribArray(in_texcoord_loc);
+		glVertexAttribPointer(
+			in_texcoord_loc, 2, GL_FLOAT, GL_FALSE, sizeof(TexturedVertex),
+			(void*)sizeof(vec3)); // note the stride to skip the preceeding vertex position
 
-			// Getting uniform locations for glUniform* calls
-			GLint color_uloc = glGetUniformLocation(program, "deathParticleColor");
-			// const vec3 color = registry.colors.has(entity) ? registry.colors.get(entity) : vec3(1);
-			glUniform4fv(color_uloc, 1, (float*)&particle.Color);
-			gl_has_errors();
+		glEnableVertexAttribArray(4);
+		glBindBuffer(GL_ARRAY_BUFFER, RenderSystem::particles_position_buffer);
+		glBufferSubData(GL_ARRAY_BUFFER, 0, particle.deathParticles.size() * 4 * sizeof(float), particle.positions);
+		gl_has_errors();
 
-			// Get number of indices from index buffer, which has elements uint16_t
-			GLint size = 0;
-			glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
-			gl_has_errors();
+		glBindBuffer(GL_ARRAY_BUFFER, RenderSystem::particles_position_buffer);
+		glVertexAttribPointer(
+			4, // attribute. must match the layout in the shader.
+			4, // size : x + y + z + size => 4
+			GL_FLOAT, // type
+			GL_FALSE, // normalized?
+			0, // stride
+			(void*)0 // array buffer offset
+		);
+		gl_has_errors();
 
-			GLsizei num_indices = size / sizeof(uint16_t);
-			// GLsizei num_triangles = num_indices / 3;
+		glVertexAttribDivisor(4, 1);
+		gl_has_errors();
+		// printf("no gl errors till line 69");
 
-			GLint currProgram;
-			glGetIntegerv(GL_CURRENT_PROGRAM, &currProgram);
-			// Setting uniform values to the currently bound program
-			GLuint transform_loc = glGetUniformLocation(currProgram, "transform");
-			glUniformMatrix3fv(transform_loc, 1, GL_FALSE, (float*)&transform.mat);
-			GLuint projection_loc = glGetUniformLocation(currProgram, "projection");
-			glUniformMatrix3fv(projection_loc, 1, GL_FALSE, (float*)&projection);
-			gl_has_errors();
-			// Drawing of num_indices/3 triangles specified in the index buffer
-			glDrawElements(GL_TRIANGLES, num_indices, GL_UNSIGNED_SHORT, nullptr);
-			gl_has_errors();
+		// Enabling and binding texture to slot 0
+		glActiveTexture(GL_TEXTURE0);
+		gl_has_errors();
+		GLuint texture_id = texture_gl_handles[(GLuint)TEXTURE_ASSET_ID::DEATH_PARTICLE];
+		glBindTexture(GL_TEXTURE_2D, texture_id);
+		gl_has_errors();
+
+
+		GLint currProgram;
+		glGetIntegerv(GL_CURRENT_PROGRAM, &currProgram);
+		GLuint projection_loc = glGetUniformLocation(currProgram, "projection");
+		glUniformMatrix3fv(projection_loc, 1, GL_FALSE, (float*)&projection);
+		gl_has_errors();
+
+		glUniform2f(glGetUniformLocation(currProgram, "scale"), (float)5., (float)5.);
+		gl_has_errors();
+		// printf("no gl errors till line 87");
+
+		auto& angle = particle.angle;
+		angle += 0.5;
+		if (angle >= (2 * M_PI)) {
+			angle = 0;
 		}
+		glUniform1f(glGetUniformLocation(currProgram, "angle"), angle);
+
+		glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, particle.deathParticles.size());
+		gl_has_errors();
+
+		glDisable(GL_BLEND);
+		// glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	}
-	// glDisable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
 
 void RenderSystem::drawTexturedMesh(Entity entity,
@@ -311,6 +326,7 @@ void RenderSystem::draw()
 
 	// Truely render to the screen
 	drawToScreen();
+
 	for (auto& entity : needParticleEffects) {
 		drawDeathParticles(entity, projection_2D);
 	}

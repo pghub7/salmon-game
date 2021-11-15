@@ -54,6 +54,7 @@ bool RenderSystem::init(int width, int height, GLFWwindow* window_arg)
     initializeGlTextures();
 	initializeGlEffects();
 	initializeGlGeometryBuffers();
+	initParticlesBuffer();
 
 	return true;
 }
@@ -374,3 +375,11 @@ bool loadEffectFromFile(
 	return true;
 }
 
+void RenderSystem::initParticlesBuffer() {
+	GLuint particles_position_buffer;
+	glGenBuffers(1, &particles_position_buffer);
+	RenderSystem::particles_position_buffer = particles_position_buffer;
+	glBindBuffer(GL_ARRAY_BUFFER, particles_position_buffer);
+	// Initialize with empty (NULL) buffer : it will be updated later, each frame.
+	glBufferData(GL_ARRAY_BUFFER, 1000 * 4 * sizeof(GLfloat), NULL, GL_STREAM_DRAW);
+}

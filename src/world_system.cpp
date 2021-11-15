@@ -12,17 +12,44 @@
 // Game configuration
 const size_t MAX_TURTLES = 15;
 const size_t MAX_FISH = 5;
-const size_t TURTLE_DELAY_MS = 5000 * 3;
+const size_t TURTLE_DELAY_MS = 1000 * 3;
 const size_t FISH_DELAY_MS = 1000 * 3;
 const size_t MAX_VORTICES = 2;
 const size_t VORTEX_DELAY = 5000 * 5;
+const size_t PEBBLE_DELAY_MS = 1000 * 2;
+const int NUM_DEATH_PARTICLES = 1000;
+
+namespace {
+	vec2 computeCollisionVelocity(Entity entity, Entity entity_other) {
+		auto& motion_entity = registry.motions.get(entity);
+		auto& motion_entity_other = registry.motions.get(entity_other);
+		auto& physics_entity = registry.physics.get(entity);
+		auto& physics_entity_other = registry.physics.get(entity_other);
+
+		float distSquared = (float)pow(motion_entity.position.x - motion_entity_other.position.x, 2) + pow(motion_entity.position.y - motion_entity_other.position.y, 2);
+
+		vec2 num = (motion_entity.velocity - motion_entity_other.velocity) * (motion_entity.position - motion_entity_other.position);
+		num = num / distSquared;
+		num = num * (motion_entity.position - motion_entity_other.position);
+		float coeff = (2 * physics_entity_other.mass) / (physics_entity.mass + physics_entity_other.mass);
+
+		vec2 new_velocity = motion_entity.velocity - (coeff * num);
+
+		if (physics_entity.affectedByGravity) {
+			// new_velocity *= -1.f;
+		}
+
+		return new_velocity;
+	}
+}
 
 // Create the fish world
 WorldSystem::WorldSystem()
 	: points(0)
 	, next_turtle_spawn(0.f)
 	, next_fish_spawn(0.f)
-	, next_vortex_spawn(5000.f) {
+	, next_vortex_spawn(5000.f)
+	, next_pebble_spawn(0.f) {
 	// Seeding rng with random device
 	rng = std::default_random_engine(std::random_device()());
 }
@@ -120,7 +147,7 @@ GLFWwindow* WorldSystem::create_window(int width, int height) {
 void WorldSystem::init(RenderSystem* renderer_arg) {
 	this->renderer = renderer_arg;
 	// Playing background music indefinitely
-	Mix_PlayMusic(background_music, -1);
+	// Mix_PlayMusic(background_music, -1);
 	fprintf(stderr, "Loaded music\n");
 
 	// Set all states to default
@@ -204,11 +231,48 @@ bool WorldSystem::step(float elapsed_ms_since_last_update) {
 
 	}
 
-
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	// TODO A3: HANDLE PEBBLE SPAWN HERE
 	// DON'T WORRY ABOUT THIS UNTIL ASSIGNMENT 3
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	next_pebble_spawn -= elapsed_ms_since_last_update * current_speed;
+	if (next_pebble_spawn < 0.f) {
+		// Reset timer
+		next_pebble_spawn = (PEBBLE_DELAY_MS / 15) + uniform_dist(rng) * (PEBBLE_DELAY_MS / 15);
+		// next_pebble_spawn = PEBBLE_DELAY_MS / 50;
+		int w, h;
+		glfwGetWindowSize(window, &w, &h);
+		float radius = 30 * (uniform_dist(rng) + 0.3f); // range 0.3 .. 1.3
+		Entity pebble = createPebble({ uniform_dist(rng) * w, h - uniform_dist(rng) * 20 }, { radius, radius });
+		auto& physicsComponent = registry.physics.get(pebble);
+		physicsComponent.mass *=  0.1* radius;
+		float brightness = uniform_dist(rng) * 0.5 + 0.5;
+		registry.colors.insert(pebble, { brightness, brightness, brightness });
+		auto& motion = registry.motions.get(pebble);
+		motion.position = registry.motions.get(player_salmon).position;
+
+		
+		std::random_device rd; // obtain a random number from hardware
+		std::random_device rd2;
+		std::mt19937 gen(rd()); // seed the generator
+		std::mt19937 gen2(rd2());
+		std::uniform_int_distribution<> distr(150, 200); // define the range
+		std::uniform_int_distribution<> distr2(120, 170); // define the range
+		// float randNum = (float)((rand() % 50 - 10) * 7);
+		int randNum1 = distr(gen);
+		int randNum2 = distr2(gen2);
+		motion.velocity = vec2(randNum1, randNum2);
+		if (randNum1 % 2 == 0) {
+			motion.velocity.x *= -1.;
+		}
+		if (randNum2 % 3 == 0) {
+			motion.velocity.y *= -1.;
+		}
+		//else if (randNum2 > 40 && randNum2 < 50) {
+		//	motion.velocity.x *= -1.;
+		//}
+	}
+
 
 	// Processing the salmon state
 	assert(registry.screenStates.components.size() <= 1);
@@ -244,52 +308,32 @@ bool WorldSystem::step(float elapsed_ms_since_last_update) {
 		}
 	}
 
+	// update state of death particles
 	for (Entity entity : registry.deathParticles.entities) {
 		DeathParticle& deathParticles = registry.deathParticles.get(entity);
-		for (auto& particle : deathParticles.deathParticles) {
+		for (int i = 0; i < deathParticles.deathParticles.size(); i++) {
+			auto& particle = deathParticles.deathParticles[i];
+			// for (auto& particle : deathParticles.deathParticles) {
 			particle.Life -= elapsed_ms_since_last_update;
-			if (particle.Life > 0.f) {
-				// particle.motion.position -= vec2({particle.motion.velocity.y * (rand()%20 * 0.1), particle.motion.velocity.y * (rand()%20 * 0.1) });
-				// particle.motion.position.y -= particle.motion.velocity.x * (rand() % 3 * 1.5f);
-				// particle.motion.position.x -= particle.motion.velocity.y * (rand() % 3 * 1.5f);
-				// particle.motion.position -= particle.motion.velocity * 1.5f;
-				// try 17 , 0.3f, 0.03f
-				particle.motion.position.x -= particle.motion.velocity.y * (rand() % 17) * 0.3f;
-				particle.motion.position.y -= particle.motion.velocity.x * (rand() % 17) * 0.3f;
-				particle.Color.a -= 0.05f * 0.01f;
-				particle.motion.angle += 0.5;
-				if (particle.motion.angle >= (2 * M_PI)) {
-					particle.motion.angle = 0;
-				}
-				// particle.motion.position.x -= particle.motion.velocity.x * 0.01 * (rand() % 10);
-				// particle.motion.position.y -= particle.motion.velocity.y * 0.01 * (rand() % 10);
-				// particle.Color.a -= 0.5 * 2.5f;
-				/*if (particle.Life < 4250.f) {
-					particle.Color.r = 0.f;
-					particle.Color.g = 0.f;
-					particle.Color.b = 1.f;
-				} 
-				else if (particle.Life < 3750.f) {
-					particle.Color.r = 1.f;
-					particle.Color.g = 1.;
-					particle.Color.b = 0.f;
-				}
-				else if (particle.Life < 3000.f) {
-					particle.Color.r = 1.f;
-					particle.Color.g = 0.5f;
-					particle.Color.b = 0.f;
-				}
-				else if (particle.Life < 2000.f) {
-					particle.Color.r = 1.f;
-					particle.Color.g = 0.1f;
-					particle.Color.b = 0.f;
-				}*/
+			// if (particle.Life > 0.f) {
+			particle.motion.position.x -= particle.motion.velocity.y * (rand() % 17) * 0.3f;
+			particle.motion.position.y -= particle.motion.velocity.x * (rand() % 17) * 0.3f;
+			particle.Color.a -= 0.05f * 0.01f;
+			particle.motion.angle += 0.5;
+			if (particle.motion.angle >= (2 * M_PI)) {
+				particle.motion.angle = 0;
 			}
-			else {
+			deathParticles.positions[i * 4 + 0] = particle.motion.position.x;
+			deathParticles.positions[i * 4 + 1] = particle.motion.position.y;
+			deathParticles.positions[i * 4 + 2] = 1.;
+			deathParticles.positions[i * 4 + 3] = particle.Life;
+			// }
+			if (particle.Life <= 0) {
 				deathParticles.fadedParticles++;
 			}
 		}
-		if (deathParticles.fadedParticles >= 99) {
+		if (deathParticles.fadedParticles >= NUM_DEATH_PARTICLES - 5) {
+			deathParticles.faded = true;
 			registry.deathParticles.remove(entity);
 		}
 	}
@@ -321,27 +365,20 @@ void WorldSystem::restart_game() {
 
 	// !! TODO A3: Enable static pebbles on the ground
 	// Create pebbles on the floor for reference
-	/*
-	for (uint i = 0; i < 20; i++) {
-		int w, h;
-		glfwGetWindowSize(window, &w, &h);
-		float radius = 30 * (uniform_dist(rng) + 0.3f); // range 0.3 .. 1.3
-		Entity pebble = createPebble({ uniform_dist(rng) * w, h - uniform_dist(rng) * 20 }, 
-			         { radius, radius });
-		float brightness = uniform_dist(rng) * 0.5 + 0.5;
-		registry.colors.insert(pebble, { brightness, brightness, brightness});
-	}
-	*/
+	//for (uint i = 0; i < 20; i++) {
+	//	int w, h;
+	//	glfwGetWindowSize(window, &w, &h);
+	//	float radius = 30 * (uniform_dist(rng) + 0.3f); // range 0.3 .. 1.3
+	//	Entity pebble = createPebble({ uniform_dist(rng) * w, h - uniform_dist(rng) * 20 }, 
+	//		         { radius, radius });
+	//	float brightness = uniform_dist(rng) * 0.5 + 0.5;
+	//	registry.colors.insert(pebble, { brightness, brightness, brightness});
+	//}
+	
 }
 
 // Compute collisions between entities
 void WorldSystem::handle_collisions() {
-
-	//// handle salmon collisions with wall
-	//if (registry.players.has(player_salmon) && registry.players.get(player_salmon).collidesWithWall == true) {
-	//	registry.motions.get(player_salmon).velocity.y = 15.;
-	//}
-
 	// Loop over all collisions detected by the physics system
 	auto& collisionsRegistry = registry.collisions; // TODO: @Tim, is the reference here needed?
 	for (uint i = 0; i < collisionsRegistry.components.size(); i++) {
@@ -351,8 +388,6 @@ void WorldSystem::handle_collisions() {
 
 		// For now, we are only interested in collisions that involve the salmon
 		if (registry.players.has(entity)) {
-			//Player& player = registry.players.get(entity);
-
 			// Checking Player - HardShell collisions
 			if (registry.hardShells.has(entity_other)) {
 				// initiate death unless already dying
@@ -380,11 +415,9 @@ void WorldSystem::handle_collisions() {
 					
 					if (!registry.deathParticles.has(entity)) {
 						DeathParticle particleEffects;
-						for (int p = 0; p < 100; p++) {
+						for (int p = 0; p < NUM_DEATH_PARTICLES; p++) {
 							auto& motion = registry.motions.get(entity);
 							DeathParticle particle;
-							// particle.motion.position.x = motion.position.x + 10;
-							// particle.motion.position.y = motion.position.y + 10;
 							float random1 = ((rand() % 100) - 50) / 10.0f;
 							float random2 = ((rand() % 200) - 100) / 10.0f;
 							float rColor = 0.5f + ((rand() % 100) / 100.0f);
@@ -395,6 +428,10 @@ void WorldSystem::handle_collisions() {
 							particle.motion.velocity *= 0.1f;
 							particle.motion.scale = vec2({ 10, 10 });
 							particleEffects.deathParticles.push_back(particle);
+							particleEffects.positions[p * 4 + 0] = particle.motion.position.x;
+							particleEffects.positions[p * 4 + 1] = particle.motion.position.y;
+							particleEffects.positions[p * 4 + 2] = 1.;
+							particleEffects.positions[p * 4 + 3] = particle.Life;
 						}
 						registry.deathParticles.insert(entity, particleEffects);
 					}
@@ -424,6 +461,27 @@ void WorldSystem::handle_collisions() {
 				registry.remove_all_components_of(entity);
 			}
 		}
+
+		// handle collisions that have a physics component
+		//if (registry.physics.has(entity) && registry.physics.has(entity_other)) {
+		//	// printf("collision for physics components detected!!\n");
+
+		//	vec2 new_vel_entity = computeCollisionVelocity(entity, entity_other);
+		//	vec2 new_vel_entity_other = computeCollisionVelocity(entity_other, entity);
+
+		//	auto& motion_entity = registry.motions.get(entity);
+		//	motion_entity.velocity = new_vel_entity;
+		//	motion_entity.position = motion_entity.position +
+		//	
+		//	auto& motion_entity_other = registry.motions.get(entity_other);
+		//	motion_entity_other.velocity = new_vel_entity_other;
+
+
+		//	if (registry.hardShells.has(entity)) {
+		//		printf("velocity of pebble:%f, %f\n", motion_entity_other.velocity.x, motion_entity_other.velocity.y);
+		//		printf("velocity of turtle:%f, %f\n", motion_entity.velocity.x, motion_entity.velocity.y);
+		//	}
+		//}
 	}
 
 	// Remove all collisions from this simulation step

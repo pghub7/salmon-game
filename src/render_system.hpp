@@ -82,6 +82,7 @@ private:
 	void drawTexturedMesh(Entity entity, const mat3& projection);
 	void drawDeathParticles(Entity entity, const mat3& projection);
 	void drawToScreen();
+	void initParticlesBuffer();
 
 	// Window handle
 	GLFWwindow* window;
@@ -94,7 +95,8 @@ private:
 	GLuint off_screen_render_buffer_depth;
 
 	Entity screen_state_entity;
+	GLuint particles_position_buffer;
 };
 
 bool loadEffectFromFile(
-	const std::string& vs_path, const std::string& fs_path, GLuint& out_program);
+	const std::string& vs_path, const std::string& fs_path, std::string& gs_path, GLuint& out_program);
